@@ -1,95 +1,35 @@
-data "aws_availability_zones" "available" {}
+module "vpc" {
+  source  = "terraform-aws-modules/vpc/aws"
+  version = "~> 6.0"
 
-locals {
-  azs = slice(data.aws_availability_zones.available.names, 0, 3)
-}
+  name = "eks-vpc"
 
-#########################################################
-# VPC
-#########################################################
+  cidr = var.vpc_id
 
-resource "aws_vpc" "eks" {
-  cidr_block           = var.vpc_id
+  azs = var.availability_zones
+
+  public_subnets = var.public_subnet_cidr
+
+  private_subnets = var.private_subnet_cidrs
+
+  enable_nat_gateway = true
+  single_nat_gateway = true
+
   enable_dns_hostnames = true
   enable_dns_support   = true
 
-  tags = {
-    Name = "eks-vpc"
+  public_subnet_tags = {
+    "kubernetes.io/role/elb" = "1"
   }
-}
 
-#########################################################
-# Internet Gateway
-#########################################################
-
-resource "aws_internet_gateway" "this" {
-  vpc_id = aws_vpc.eks.id
-}
-
-#########################################################
-# Public Subnet (Bastion)
-#########################################################
-
-resource "aws_subnet" "public" {
-  vpc_id                  = aws_vpc.eks.id
-  cidr_block              = var.public_subnet_cidr
-  availability_zone       = local.azs[0]
-  map_public_ip_on_launch = true
-
-  tags = {
-    Name = "public-bastion"
-  }
-}
-
-#########################################################
-# Private Subnets
-#########################################################
-
-resource "aws_subnet" "private" {
-  count = 3
-
-  vpc_id            = aws_vpc.eks.id
-  availability_zone = local.azs[count.index]
-
-  cidr_block = var.private_subnet_cidrs[count.index]
-
-  tags = {
-    Name                              = "private-${local.azs[count.index]}"
+  private_subnet_tags = {
     "kubernetes.io/role/internal-elb" = "1"
   }
-}
 
-#########################################################
-# Public Route Table
-#########################################################
-
-resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.eks.id
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.this.id
+  tags = {
+    Terraform = "true"
+    Environment = "lab"
   }
-}
-
-resource "aws_route_table_association" "public" {
-  subnet_id      = aws_subnet.public.id
-  route_table_id = aws_route_table.public.id
-}
-
-#########################################################
-# Private Route Table
-#########################################################
-
-resource "aws_route_table" "private" {
-  vpc_id = aws_vpc.eks.id
-}
-
-resource "aws_route_table_association" "private" {
-  count = 3
-
-  subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private.id
 }
 
 #########################################################
@@ -99,7 +39,7 @@ resource "aws_route_table_association" "private" {
 resource "aws_security_group" "vpce" {
   name        = "vpce-sg"
   description = "Allow HTTPS from VPC"
-  vpc_id      = aws_vpc.eks.id
+  vpc_id      = module.vpc.vpc_id
 
   ingress {
     from_port   = 443
@@ -121,13 +61,11 @@ resource "aws_security_group" "vpce" {
 #########################################################
 
 resource "aws_vpc_endpoint" "s3" {
-  vpc_id            = aws_vpc.eks.id
+  vpc_id            = module.vpc.vpc_id
   service_name      = "com.amazonaws.us-east-2.s3"
   vpc_endpoint_type = "Gateway"
 
-  route_table_ids = [
-    aws_route_table.private.id
-  ]
+  route_table_ids = module.vpc.private_route_table_ids
 }
 
 #########################################################
@@ -151,10 +89,10 @@ locals {
 resource "aws_vpc_endpoint" "interface" {
   for_each = toset(local.interface_endpoints)
 
-  vpc_id              = aws_vpc.eks.id
+  vpc_id              = module.vpc.vpc_id
   service_name        = "com.amazonaws.us-east-2.${each.value}"
   vpc_endpoint_type   = "Interface"
-  subnet_ids          = aws_subnet.private[*].id
+  subnet_ids          = module.vpc.private_subnets
   security_group_ids  = [aws_security_group.vpce.id]
   private_dns_enabled = true
 

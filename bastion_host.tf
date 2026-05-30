@@ -1,7 +1,7 @@
 resource "aws_security_group" "bastion" {
   name        = "bastion-sg"
   description = "Bastion Security Group"
-  vpc_id      = aws_vpc.eks.id
+  vpc_id      = module.vpc.vpc_id
 
   egress {
     from_port   = 0
@@ -73,12 +73,12 @@ data "aws_ami" "amazon_linux" {
 resource "aws_instance" "bastion" {
   ami                    = data.aws_ami.amazon_linux.id
   instance_type          = "t3.small"
-  subnet_id              = aws_subnet.public.id
+  subnet_id              = module.vpc.private_subnets[0]
   vpc_security_group_ids = [aws_security_group.bastion.id]
 
   iam_instance_profile = aws_iam_instance_profile.bastion.name
 
-  associate_public_ip_address = true
+  associate_public_ip_address = false
 
   user_data = <<-EOF
 #!/bin/bash

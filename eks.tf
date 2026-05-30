@@ -29,8 +29,8 @@ module "eks" {
   enable_cluster_creator_admin_permissions = true
   cloudwatch_log_group_retention_in_days = 30
 
-  vpc_id                   = aws_vpc.eks.id
-  subnet_ids               = aws_subnet.private[*].id
+  vpc_id                   = module.vpc.vpc_id
+  subnet_ids               = module.vpc.private_subnets
 
   # EKS Managed Node Group(s)
   eks_managed_node_groups = {
