@@ -1,5 +1,5 @@
-variable "vpc_id" {
-    description = "VPC ID"
+variable "vpc_cidr" {
+    description = "VPC CIDR"
     type = string
 }
 

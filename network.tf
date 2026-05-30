@@ -4,7 +4,7 @@ module "vpc" {
 
   name = "eks-vpc"
 
-  cidr = var.vpc_id
+  cidr = var.vpc_cidr
 
   azs = var.availability_zones
 
@@ -45,7 +45,7 @@ resource "aws_security_group" "vpce" {
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = [var.vpc_id]
+    cidr_blocks = [var.vpc_cidr]
   }
 
   egress {
