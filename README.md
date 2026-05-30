@@ -52,11 +52,6 @@
 ├── variables.tf
 ├── outputs.tf
 ├── versions.tf
-│
-├── modules/
-│   ├── eks/
-│   └── vpc/
-│
 └── README.md
 ```
 
