@@ -65,15 +65,15 @@
 
 ```bash
 git clone https://github.com/crifeboss/eks-module.git
-cd eks-module
 ```
 
 2. Configure Variables
+In another repository, pass the variables and reference the cloned module
 
 Example:
 ```terraform
 module "eks-lab" {
-  source = "../git-folder/eks-module"
+  source = "../eks-module"
 
   cluster_name          = "eks-lab"
   eks_version           = "1.34"
