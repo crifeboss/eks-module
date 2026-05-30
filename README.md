@@ -1,120 +1,159 @@
 # EKS Infrastructure Deployment
 
-## Overview
+## Features
 
-This Terraform project deploys the foundational AWS infrastructure required to run a private Amazon EKS cluster.
+VPC
+Private and Public subnets
+Nat Gateway
+VPC Endpoints
+Bastion Host
+Cluster Autoscaler IAM role
 
-The deployment focuses on:
+## Node Groups
 
-- Secure networking
-- Private Kubernetes control plane access
-- Bastion-based administration using AWS Systems Manager (SSM)
-- Infrastructure as Code using Terraform
+EKS Managed Node Groups
+Support for Graviton instances
+Autoscaling Configuration
+On-Demand Node Groups
 
-Cluster Autoscaler is not deployed by this project and will be installed separately using Helm.
+## Add-ons
 
-## Resources Deployed
+vpc-cni
+coredns
+kube-proxy
+amazon-cloudwatch-observability
 
-### VPC
-- Single VPC
+## Security
 
-### Subnets
-- 1 Public Subnet
-- 3 Private Subnets across 3 AZs
+IAM least privilege policies
+Security Groups
+IAM Roles for Kubernetes workloads
+Kubernetes RBAC integration
 
-### Networking
-- Single Nat Gateway
-- Route Tables
-- VPC Endpoints (EC2, ECR, STS, SSM, CloudWatch, S3, logs, monitoring)
+## Observability
 
-### EKS Cluster
-- Private endpoint enabled
-- Public endpoint disabled
-- Managed Node Group
-- CoreDNS
-- kube-proxy
-- VPC CNI
-- Amazon Cloudwatch Observability
+Control plane logs
+Container Insights support
 
-### Node Group
-- Graviton-based worker nodes
-- t4g.medium (cost optimized)
-- Min: 1, Desired: 1, Max: 1
+## Prerequisites
 
-### Bastion Host
-- Private EC2 instance where cluster autoscaler helm chart can be deployed to EKS cluster
-- SSM-only access
-- No Ingress
+Tool	         Version
+Terraform	      >= 1.5.7, < 2.0.0
+AWS Provider    >=6.0.0, < 7.0.0
 
-### Security
-- Least privilege IAM
-- Private worker nodes
-- Private EKS API endpoint
-- Security group restrictions
-- EKS Cluster only access from bastion host
+## Repository Structure
+.
+├── eks.tf
+├── network.tf
+├── bastion_host.tf
+├── cluster_autoscaler_irsa.tf
+├── variables.tf
+├── outputs.tf
+├── versions.tf
+│
+├── modules/
+│   ├── eks/
+│   └── vpc/
+│
+└── README.md
 
-### Monitoring
-- CloudWatch control plane logging
-- CloudWatch Container Insights
+## Quick Start
+1. Clone Repository
 
-## Accessing EKS
+```bash
+git clone https://github.com/crifeboss/eks-module.git
+cd eks-module
+```
 
-Connect to the bastion using SSM:
+2. Configure Variables
 
-Configure kubeconfig:
+Example:
+```terraform
+module "eks-lab" {
+  source = "../git-folder/eks-module"
 
-example:
-aws eks update-kubeconfig --region us-east-2 --name eks-lab
+  cluster_name          = "eks-lab"
+  eks_version           = "1.34"
+  availability_zones   = ["us-east-2a","us-east-2b","us-east-2c"]
+  region                = "us-east-2"
+  vpc_id                = "192.168.1.0/24"
+  public_subnet_cidr    = ["192.168.1.0/27"]
+  private_subnet_cidrs = [
+    "192.168.1.32/27",
+    "192.168.1.64/27",
+    "192.168.1.96/27"
+  ]
+}
 
-Validate:
+output "cluster_autoscaler_irsa" {
+  value = module.network.cluster_autoscaler_rolearn
+}
+```
 
+3. Initialize Terraform
+```bash
+terraform init
+```
+
+4. Review Plan
+```bash
+terraform plan
+```
+
+5. Deploy
+```bash
+terraform apply
+```
+
+## Input Variables
+
+| Variable        | Description        | Default          |
+| --------------- | ------------------ | ---------------- |
+| cluster_name    | EKS cluster name   | n/a              |
+| cluster_version | Kubernetes version | latest supported |
+| environment     | Environment name   | dev              |
+
+## Networking
+
+| Variable        | Description         |
+| --------------- | ------------------- |
+| vpc_id          | Existing VPC        |
+| subnet_ids      | Worker node subnets |
+| private_subnets | Private subnet list |
+| public_subnets  | Public subnet list  |
+
+## Outputs
+
+| Output                    | Description      |
+| ------------------------- | ---------------- |
+| cluster_name              | EKS cluster name |
+| cluster_endpoint          | API endpoint     |
+| cluster_security_group_id | Security group   |
+| oidc_provider_arn         | OIDC ARN         |
+| nodegroup_arns            | Node group ARNs  |
+
+Accessing the Cluster
+```bash
+aws eks update-kubeconfig --region us-east-2 --name demo-eks
+```
+
+Verify:
+```bash
 kubectl get nodes
-kubectl get pods -A
+```
 
-## Post Deployment
+Cluster Autoscaler
+If enabled:
+```bash
+kubectl get deployment -n kube-system cluster-autoscaler
+```
 
-1. Verify node readiness
-2. Verify EKS add-ons
-3. Install Cluster Autoscaler using Helm
-4. Deploy workloads
-
-helm repo add autoscaler https://kubernetes.github.io/autoscaler
-
-cat values.yaml
-rbac:
-    serviceAccount:
-        annotations:
-            eks.amazonaws.com/role-arn: "arn:aws:iam::713545428997:role/cluster-autoscaler-role-20260530171201678200000001"
-        name: cluster-autoscaler
-awsRegion: us-east-2
-autoDiscovery:
-    clusterName: eks-lab
-
-helm install cluster-autoscaler autoscaler/cluster-autoscaler -f values.yaml -n kube-system
-
-
-
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: cpu-stress
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: cpu-stress
-  template:
-    metadata:
-      labels:
-        app: cpu-stress
-    spec:
-      containers:
-      - name: stress
-        image: public.ecr.aws/eks-distro/kubernetes/pause:3.10
-        resources:
-          requests:
-            cpu: "1000m"
-            memory: "512Mi"
-          limits:
-            cpu: "1000m"
-            memory: "512Mi"
+## Best Practices
+Use private subnets for worker nodes
+Prefer Graviton instances for cost optimization
+Enable IRSA for AWS service access
+Store Terraform state in S3 with DynamoDB locking
+Use Karpenter instead of Cluster Autoscaler for large clusters
+Pin Terraform module versions
+Enable CloudWatch logging
+Separate environments using dedicated state files
