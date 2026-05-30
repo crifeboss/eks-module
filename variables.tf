@@ -1,0 +1,29 @@
+variable "vpc_id" {
+    description = "VPC ID"
+    type = string
+}
+
+variable "public_subnet_cidr" {
+    description = "Public Subnet CIDR"
+    type = string
+}
+
+variable "private_subnet_cidrs" {
+    description = "Private Subnet CIDR"
+    type = list(string)
+}
+
+variable "region" {
+    description = "AWS Region"
+    type = string
+}
+
+variable "eks_version" {
+    description = "EKS Version"
+    type = string
+}
+
+variable "cluster_name" {
+    description = "EKS Cluster Name"
+    type = string
+}
